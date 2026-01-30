@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Quiz - Exam</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body style="background-color: #f8f9fa;">
+
+    <header class="exam-header">
+        <div style="font-weight: 700; font-size: 1.25rem;">📝 CLI Quiz</div>
+        <div class="timer-badge">
+            Time: <span id="timer">--:--</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <form id="examForm" method="POST" action="/submit">
+
+            {% for q in questions %}
+            <input type="hidden" name="question_ids" value="{{ q.id }}">
+            <div class="card exam-card">
+                <div class="question-title">{{ loop.index }}. {{ q.question }}</div>
+
+                <div class="options-grid">
+                    {% for opt in q.options %}
+                    <label class="option-label">
+                        <input type="radio" name="q_{{ q.id }}" value="{{ opt[0] }}" class="option-radio">
+                        <span>{{ opt[0] }}) {{ opt[1] }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div style="text-align: center; margin-top: 2rem; margin-bottom: 4rem;">
+                <!-- Changed to type="button" to prevent default submit and use JS handler -->
+                <button type="button" onclick="submitExam()" id="submitBtn" class="btn" style="max-width: 300px;">
+                    Submit Assessment
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Logic Scripts -->
+    <script>
+        const DURATION = {{ duration }};
+
+        // Prevent accidental tab close
+        window.onbeforeunload = function () {
+            return "Exam in progress. Changes will be lost.";
+        };
+
+        function submitExam() {
+            // 1. Confirm intention
+            if (!confirm("Are you sure you want to finish the exam?")) {
+                return; // User cancelled, do nothing, button remains active
+            }
+
+            // 2. User confirmed: Disable button to prevent double-submit
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerText = 'Submitting...';
+
+            // 3. Remove the unload warning so browser doesn't block submission
+            window.onbeforeunload = null;
+
+            // 4. Submit
+            document.getElementById('examForm').submit();
+        }
+    </script>
+    <script src="{{ url_for('static', filename='timer.js') }}"></script>
+</body>
+
+</html>

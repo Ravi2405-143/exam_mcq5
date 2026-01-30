@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Dashboard Header -->
+        <div class="card result-header">
+            <h2>🏆 Performance Report</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Detailed analysis of your assessment</p>
+
+            <div class="stats-grid">
+                <div class="stat-card primary">
+                    <div class="stat-label">Score</div>
+                    <div class="stat-val">{{ score }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Accuracy</div>
+                    <div class="stat-val">{{ ((correct / total) * 100) | round | int if total > 0 else 0 }}%</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-label">Correct</div>
+                    <div class="stat-val">{{ correct }}</div>
+                </div>
+                <div class="stat-card red">
+                    <div class="stat-label">Wrong</div>
+                    <div class="stat-val">{{ wrong }}</div>
+                </div>
+            </div>
+
+            <a href="/" class="btn" style="max-width: 300px;">Back to Home</a>
+        </div>
+
+        <h3 style="margin: 2rem 0 1rem; padding-left: 0.5rem;">Question Breakdown</h3>
+
+        <!-- Questions Loop -->
+        {% for item in analysis %}
+        <div class="analysis-item {{ item.status }}">
+            <!-- Status Badge -->
+            <span class="status-badge bg-{{ item.status }}">
+                {{ item.status }}
+            </span>
+
+            <div class="question-header">
+                <span class="q-num">Q{{ loop.index }}</span>
+                <span class="q-text">{{ item.question }}</span>
+            </div>
+
+            <!-- Options List -->
+            <div class="res-options">
+                {% for opt_code, opt_text in item.options %}
+                {% set is_correct_opt = (opt_code == item.correct) %}
+                {% set is_selected_opt = (opt_code == item.selected) %}
+
+                <div class="res-opt 
+                        {{ 'is-correct' if is_correct_opt else '' }} 
+                        {{ 'is-user-wrong' if is_selected_opt and not item.is_correct else '' }}
+                    ">
+                    <span>
+                        <b>{{ opt_code }}.</b> {{ opt_text }}
+                    </span>
+
+                    <div>
+                        {% if is_selected_opt %}
+                        <span class="opt-badge your-ans">You</span>
+                        {% endif %}
+
+                        {% if is_correct_opt %}
+                        <span class="opt-badge check">✔ Correct</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+</body>
+
+</html>

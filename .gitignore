@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Flask/Web
+instance/
+.webassets-cache
+static/node_modules/
+
+# OS/IDEs
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database (Keep the schema, maybe ignore the actual data if it's large, 
+# but for this project the user probably wants to include it initially)
+# exam.db - Removing from ignore so it's included as requested "work done"
+
+# Gemini/Internal
+.gemini/
+brain/
+*.log
+inspect_db.py
+inspect_schema.py
+find_pattern.py
+find_section_markers.py
+count_sections.py
+find_exact_headers.py
+diagnostic_headers.py
+check_db_distribution.py
+simulate_categories.py
+verify_backend.py
+migrate_db.py
+categorize_sections.py
+categorize_by_id.py
+test_diagnostics.py

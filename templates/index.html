@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Quiz Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="centered-wrapper">
+        <div class="card setup-card">
+            <div class="hero-icon">🚀</div>
+            <h1 style="margin-bottom: 0.5rem;">CLI Master Quiz</h1>
+            <p class="subtitle">Challenge yourself with random questions and track your detailed performance.</p>
+
+            <form method="POST" action="/start">
+
+                <!-- Exam Mode Selection -->
+                <div class="form-group">
+                    <label class="label">Exam Mode</label>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                        <label>
+                            <input type="radio" name="mode" value="combined" checked
+                                onchange="toggleSubject(this.value)"> Combined
+                        </label>
+                        <label>
+                            <input type="radio" name="mode" value="section-wise" onchange="toggleSubject(this.value)">
+                            Section-wise
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Subject Dropdown (Hidden initially) -->
+                <div class="form-group" id="subject-group" style="display: none;">
+                    <label class="label">Select Section</label>
+                    <select name="subject" class="input">
+                        {% for subject in subjects %}
+                        <option value="{{ subject }}">{{ subject }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">Number of Questions</label>
+                    <input type="number" name="num_questions" class="input" placeholder="Max 500" min="1" max="500"
+                        value="10" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">Duration (Minutes)</label>
+                    <input type="number" name="duration" class="input" placeholder="Exam time limit" min="1" max="180"
+                        value="15" required>
+                </div>
+
+                <button type="submit" class="btn">
+                    Start Assessment
+                    <span style="margin-left:8px">→</span>
+                </button>
+            </form>
+
+            <script>
+                function toggleSubject(mode) {
+                    const subjectGroup = document.getElementById('subject-group');
+                    const subjectSelect = subjectGroup.querySelector('select');
+                    const numInput = document.querySelector('input[name="num_questions"]');
+
+                    if (mode === 'section-wise') {
+                        subjectGroup.style.display = 'block';
+                        subjectSelect.disabled = false;
+
+                        // Limit to 60 for Section-wise
+                        numInput.max = 60;
+                        numInput.placeholder = "Max 60";
+                        if (parseInt(numInput.value) > 60) {
+                            numInput.value = 60;
+                        }
+                    } else {
+                        subjectGroup.style.display = 'none';
+                        subjectSelect.disabled = true;
+
+                        // Limit to 500 for Combined
+                        numInput.max = 500;
+                        numInput.placeholder = "Max 500";
+                    }
+                }
+            </script>
+
+            <div class="features">
+                <div class="feature-item">
+                    <span>⚡ Instant Results</span>
+                </div>
+                <div class="feature-item">
+                    <span>📊 Detailed Analytics</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -68,14 +68,19 @@ def start_exam():
     try:
         num_questions = int(request.form.get("num_questions", 10))
         duration = int(request.form.get("duration", 15))
-        subject = request.form.get("subject", "Combined")
     except ValueError:
         num_questions = 10
         duration = 15
+
+    mode = request.form.get("mode", "combined")
+    subject = request.form.get("subject", "Combined")
+    
+    # If mode is combined, force subject to Combined regardless of what form sent
+    if mode == "combined":
         subject = "Combined"
 
     # Enforce limits based on mode
-    max_questions = 60 if subject != "Combined" else 500
+    max_questions = 150 if subject != "Combined" else 500
     if num_questions > max_questions:
         num_questions = max_questions
 

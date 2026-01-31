@@ -4,76 +4,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLI Quiz - Exam</title>
+    <title>Exam in Progress</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
+        rel="stylesheet">
 </head>
 
-<body style="background-color: #f8f9fa;">
-
-    <header class="exam-header">
-        <div style="font-weight: 700; font-size: 1.25rem;">📝 CLI Quiz</div>
-        <div class="timer-badge">
-            Time: <span id="timer">--:--</span>
+<body>
+    <div class="centered-wrapper">
+        <div class="sticky-header">
+            <div class="timer-box">
+                <div style="display: flex; flex-direction: column;">
+                    <span class="stat-label">Subject</span>
+                    <span style="font-weight: 700; font-size: 0.9rem; color: var(--primary);">{{ subject }}</span>
+                </div>
+                <div id="timer" class="timer">00:00</div>
+            </div>
+            <div class="progress-container">
+                <div id="exam-progress" class="progress-bar"></div>
+            </div>
         </div>
-    </header>
 
-    <div class="container">
-        <form id="examForm" method="POST" action="/submit">
-
+        <form id="quiz-form" method="POST" action="/submit">
+            <div id="flag-container"></div>
             {% for q in questions %}
-            <input type="hidden" name="question_ids" value="{{ q.id }}">
-            <div class="card exam-card">
-                <div class="question-title">{{ loop.index }}. {{ q.question }}</div>
+            <div class="question-card" id="card_{{ q.id }}">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <span class="question-num">Question {{ loop.index }} of {{ questions|length }}</span>
+                    <button type="button" class="flag-btn" onclick="toggleFlag('{{ q.id }}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="3">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                            <line x1="4" y1="22" x2="4" y2="15"></line>
+                        </svg>
+                        Flag for Review
+                    </button>
+                </div>
+                <input type="hidden" name="question_ids" value="{{ q.id }}">
+                <div class="question-text">{{ q.question }}</div>
 
-                <div class="options-grid">
-                    {% for opt in q.options %}
-                    <label class="option-label">
-                        <input type="radio" name="q_{{ q.id }}" value="{{ opt[0] }}" class="option-radio">
-                        <span>{{ opt[0] }}) {{ opt[1] }}</span>
+                <div class="option-container">
+                    {% for letter, text in q.options %}
+                    <label class="option-item">
+                        <input type="radio" name="q_{{ q.id }}" value="{{ letter }}" onchange="updateProgress()">
+                        <div class="option-label">
+                            <span class="option-letter">{{ letter }}</span>
+                            <span>{{ text }}</span>
+                        </div>
                     </label>
                     {% endfor %}
                 </div>
             </div>
             {% endfor %}
 
-            <div style="text-align: center; margin-top: 2rem; margin-bottom: 4rem;">
-                <!-- Changed to type="button" to prevent default submit and use JS handler -->
-                <button type="button" onclick="submitExam()" id="submitBtn" class="btn" style="max-width: 300px;">
-                    Submit Assessment
-                </button>
-            </div>
+            <button type="submit" class="btn" style="margin-bottom: 5rem;">
+                Complete Assessment
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </button>
         </form>
     </div>
 
-    <!-- Logic Scripts -->
     <script>
-        const DURATION = {{ duration }};
+        const durationMinutes = {{ duration }};
+        const totalQuestions = {{ questions| length }};
+        let timeRemaining = durationMinutes * 60;
+        const timerDisplay = document.getElementById('timer');
+        const progressBar = document.getElementById('exam-progress');
 
-        // Prevent accidental tab close
-        window.onbeforeunload = function () {
-            return "Exam in progress. Changes will be lost.";
-        };
+        // Timer Logic
+        const timer = setInterval(() => {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-        function submitExam() {
-            // 1. Confirm intention
-            if (!confirm("Are you sure you want to finish the exam?")) {
-                return; // User cancelled, do nothing, button remains active
+            if (timeRemaining <= 30) {
+                timerDisplay.style.color = 'var(--error)';
+                timerDisplay.style.animation = 'pulse 1s infinite';
             }
 
-            // 2. User confirmed: Disable button to prevent double-submit
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.innerText = 'Submitting...';
+            if (timeRemaining <= 0) {
+                clearInterval(timer);
+                document.getElementById('quiz-form').submit();
+            }
+            timeRemaining--;
+        }, 1000);
 
-            // 3. Remove the unload warning so browser doesn't block submission
-            window.onbeforeunload = null;
-
-            // 4. Submit
-            document.getElementById('examForm').submit();
+        // Progress Tracking
+        function updateProgress() {
+            const answered = document.querySelectorAll('input[type="radio"]:checked').length;
+            const percentage = (answered / totalQuestions) * 100;
+            progressBar.style.width = percentage + '%';
         }
+
+        // Flagging Logic
+        const flagged = new Set();
+        function toggleFlag(qid) {
+            const btn = document.querySelector(`#card_${qid} .flag-btn`);
+            const container = document.getElementById('flag-container');
+
+            if (flagged.has(qid)) {
+                flagged.delete(qid);
+                btn.classList.remove('active');
+                document.getElementById(`flag_input_${qid}`).remove();
+            } else {
+                flagged.add(qid);
+                btn.classList.add('active');
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'flagged_ids';
+                input.value = qid;
+                input.id = `flag_input_${qid}`;
+                container.appendChild(input);
+            }
+        }
+
+        // Prevent accidental navigation
+        window.onbeforeunload = function () {
+            return "Exam progress will be lost. Are you sure?";
+        };
+
+        document.getElementById('quiz-form').onsubmit = function () {
+            window.onbeforeunload = null;
+        };
     </script>
-    <script src="{{ url_for('static', filename='timer.js') }}"></script>
+
+    <style>
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
 </body>
 
 </html>

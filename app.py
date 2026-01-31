@@ -1,17 +1,24 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session, redirect, url_for
 import sqlite3
 import random
+import os
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 DB_PATH = "exam.db"
 
 # Define available subjects
 SUBJECTS = [
-    "General Rules", "Signals", "Block Working", "Interlocking",
-    "Shunting & Yard Working", "Working of Trains (General)",
-    "Abnormal Working", "Accidents & Unusual Occurrences",
-    "Level Crossings", "Marshalling", "Brakes", 
-    "Loco Pilot / Guard Duties & Miscellaneous"
+    "G&SR Basics & Signals",
+    "Block Working Manual (BWM)",
+    "Accident Manual & Disaster Mgmt",
+    "Operating Manual (OM)",
+    "Establishment & Financial Rules",
+    "Engineering & P-Way Rules",
+    "S&T (Signals & Telecomm) Rules",
+    "Carriage & Wagon (C&W) Rules",
+    "Loco Rules & Operation",
+    "Store Rules & Procedures"
 ]
 
 def get_db_connection():
@@ -19,23 +26,43 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def get_questions(limit, subject=None):
+def get_questions(limit, subject=None, exclude_ids=None):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
+        exclude_sql = ""
+        params = []
+        
+        if exclude_ids:
+            placeholders = ','.join('?' for _ in exclude_ids)
+            exclude_sql = f" AND id NOT IN ({placeholders})"
+            params.extend(exclude_ids)
+
         if subject and subject != "Combined":
-            cur.execute(
-                "SELECT * FROM questions WHERE subject = ? ORDER BY RANDOM() LIMIT ?",
-                (subject, limit)
-            )
+            query = f"SELECT * FROM questions WHERE subject = ?{exclude_sql} ORDER BY RANDOM() LIMIT ?"
+            params.insert(0, subject)
+            params.append(limit)
+            cur.execute(query, params)
         else:
-            cur.execute(
-                "SELECT * FROM questions ORDER BY RANDOM() LIMIT ?",
-                (limit,)
-            )
+            # For combined, we also exclude
+            query = f"SELECT * FROM questions WHERE 1=1{exclude_sql} ORDER BY RANDOM() LIMIT ?"
+            params.append(limit)
+            cur.execute(query, params)
             
         rows = cur.fetchall()
+        
+        # If we didn't get enough questions, it might be because we excluded too many.
+        # Let's try again without exclusion if we are short on questions for a better user experience.
+        if len(rows) < limit and exclude_ids:
+            if subject and subject != "Combined":
+                cur.execute("SELECT * FROM questions WHERE subject = ? ORDER BY RANDOM() LIMIT ?", (subject, limit))
+            else:
+                cur.execute("SELECT * FROM questions ORDER BY RANDOM() LIMIT ?", (limit,))
+            rows = cur.fetchall()
+            # If we fallback, we should tell the caller to clear session? 
+            # Actually, the caller will handle the session update.
+            
         conn.close()
 
         questions = []
@@ -61,7 +88,51 @@ def get_questions(limit, subject=None):
 
 @app.route("/")
 def index():
-    return render_template("index.html", subjects=SUBJECTS)
+    if 'seen_ids' not in session:
+        session['seen_ids'] = []
+    
+    # Calculate subject-wise progress
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT subject, COUNT(*) FROM questions GROUP BY subject")
+    counts_raw = cur.fetchall()
+    
+    # Get total per subject mapping
+    total_counts = {row[0]: row[1] for row in counts_raw}
+    
+    # Get seen counts per subject
+    seen_ids = session.get('seen_ids', [])
+    seen_counts = {}
+    
+    if seen_ids:
+        placeholders = ','.join('?' for _ in seen_ids)
+        cur.execute(f"SELECT subject, COUNT(*) FROM questions WHERE id IN ({placeholders}) GROUP BY subject", seen_ids)
+        seen_raw = cur.fetchall()
+        seen_counts = {row[0]: row[1] for row in seen_raw}
+    
+    conn.close()
+    
+    # Prepare enriched subjects list for template
+    enriched_subjects = []
+    for s in SUBJECTS:
+        total = total_counts.get(s, 0)
+        seen = seen_counts.get(s, 0)
+        enriched_subjects.append({
+            'name': s,
+            'total': total,
+            'seen': seen,
+            'percentage': round((seen/total * 100), 1) if total > 0 else 0
+        })
+    
+    return render_template("index.html", 
+                         subjects=enriched_subjects, 
+                         seen_count=len(seen_ids),
+                         total_questions=sum(total_counts.values()))
+
+@app.route("/reset_progress")
+def reset_progress():
+    session['seen_ids'] = []
+    return redirect(url_for('index'))
 
 @app.route("/start", methods=["POST"])
 def start_exam():
@@ -75,27 +146,34 @@ def start_exam():
     mode = request.form.get("mode", "combined")
     subject = request.form.get("subject", "Combined")
     
-    # If mode is combined, force subject to Combined regardless of what form sent
     if mode == "combined":
         subject = "Combined"
 
-    # Enforce limits based on mode
     max_questions = 150 if subject != "Combined" else 500
     if num_questions > max_questions:
         num_questions = max_questions
 
-    questions = get_questions(num_questions, subject)
+    exclude_ids = session.get('seen_ids', [])
+    questions = get_questions(num_questions, subject, exclude_ids)
     
-    # Validation: if no questions found (e.g. DB empty or locked)
+    if not questions:
+        questions = get_questions(num_questions, subject)
+        
     if not questions:
         if subject != "Combined":
              return f"Error: No questions found for subject '{subject}'.", 404
         return "Error: Could not retrieve questions. Please check database.", 500
 
+    new_ids = [q['id'] for q in questions]
+    current_seen = session.get('seen_ids', [])
+    updated_seen = list(set(current_seen + new_ids))
+    session['seen_ids'] = updated_seen
+
     return render_template(
         "exam.html",
         questions=questions,
-        duration=duration
+        duration=duration,
+        subject=subject
     )
 
 @app.route("/submit", methods=["POST"])
@@ -104,28 +182,22 @@ def submit_exam():
     correct_count = 0
     wrong_count = 0
     skipped_count = 0
-    
-    # Store results for rendering
     analysis = []
     
     try:
-        # Extract ALL question IDs from the hidden inputs to ensure we capture unattempted ones
         question_ids = request.form.getlist('question_ids')
+        flagged_ids = request.form.getlist('flagged_ids') # New: capture flagged IDs
         user_answers = {}
         
-        # Build map of user answers
         for qid in question_ids:
             key = f"q_{qid}"
             value = request.form.get(key)
             if value:
-                # Value is expected to be just the option letter "A"
                 user_answers[qid] = value
 
         if not question_ids:
-             # Fallback if no questions (shouldn't happen in normal flow)
              return render_template("result.html", score=0, total=0, analysis=[])
 
-        # Fetch all relevant questions from DB
         conn = get_db_connection()
         cur = conn.cursor()
         placeholders = ','.join('?' for _ in question_ids)
@@ -134,7 +206,6 @@ def submit_exam():
         rows = cur.fetchall()
         conn.close()
         
-        # Create a lookup for questions
         questions_db = {str(row["id"]): row for row in rows}
         
         for qid in question_ids:
@@ -145,7 +216,6 @@ def submit_exam():
             user_selected = user_answers.get(qid)
             correct_option = q_data["correct_option"]
             
-            # Determine status
             is_correct = False
             status = "skipped"
             
@@ -161,9 +231,8 @@ def submit_exam():
                     status = "wrong"
             else:
                 skipped_count += 1
-                status = "skipped" # Explicitly set status for unattempted
+                status = "skipped"
                 
-            # Reconstruct options for display
             options_display = [
                 ("A", q_data["option_a"]),
                 ("B", q_data["option_b"]),
@@ -179,6 +248,7 @@ def submit_exam():
                 "correct": correct_option,
                 "is_correct": is_correct,
                 "status": status,
+                "flagged": qid in flagged_ids, # New property
                 "explanation": f"Correct answer: {correct_option}" 
             })
 

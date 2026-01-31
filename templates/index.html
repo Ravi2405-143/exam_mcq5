@@ -4,106 +4,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLI Quiz Portal</title>
+    <title>Professional MCQ Portal</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div class="centered-wrapper">
-        <div class="card setup-card">
-            <div class="hero-icon">🚀</div>
-            <h1 style="margin-bottom: 0.5rem;">CLI Master Quiz</h1>
-            <p class="subtitle">Challenge yourself with random questions and track your detailed performance.</p>
+        <div class="card">
+            <h1 style="margin-bottom: 0.5rem;">Assessment Portal</h1>
+            <p class="subtitle">Prepare with precision. Track your progress across all technical topics.</p>
 
             <form method="POST" action="/start">
 
-                <!-- Exam Mode Selection -->
                 <div class="form-group">
-                    <label class="label">Exam Mode</label>
-                    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-                        <label>
+                    <label class="label">Examination Mode</label>
+                    <div class="radio-group">
+                        <label class="radio-item">
                             <input type="radio" name="mode" value="combined" checked
-                                onchange="toggleSubject(this.value)"> Combined
+                                onchange="toggleSubject(this.value)">
+                            <span class="radio-label">Combined</span>
                         </label>
-                        <label>
+                        <label class="radio-item">
                             <input type="radio" name="mode" value="section-wise" onchange="toggleSubject(this.value)">
-                            Section-wise
+                            <span class="radio-label">Section-wise</span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Subject Dropdown (Hidden initially, disabled by default) -->
                 <div class="form-group" id="subject-group" style="display: none;">
-                    <label class="label">Select Section</label>
-                    <select name="subject" class="input" disabled>
+                    <label class="label">Focus Topic</label>
+                    <select name="subject" class="select" disabled>
                         {% for subject in subjects %}
-                        <option value="{{ subject }}">{{ subject }}</option>
+                        <option value="{{ subject.name }}">
+                            {{ subject.name }} ({{ subject.seen }}/{{ subject.total }} seen - {{ subject.percentage }}%)
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label class="label">Number of Questions</label>
-                    <input type="number" name="num_questions" class="input" placeholder="Max 500" min="1" max="500"
-                        value="10" required>
-                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label class="label">Question Volume</label>
+                        <input type="number" name="num_questions" class="input" min="1" max="500" value="10" required>
+                    </div>
 
-                <div class="form-group">
-                    <label class="label">Duration (Minutes)</label>
-                    <input type="number" name="duration" class="input" placeholder="Exam time limit" min="1" max="180"
-                        value="15" required>
+                    <div class="form-group">
+                        <label class="label">Time Allocation (Min)</label>
+                        <input type="number" name="duration" class="input" min="1" max="180" value="15" required>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn">
-                    Start Assessment
-                    <span style="margin-left:8px">→</span>
+                    Launch Assessment
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
                 </button>
             </form>
 
-            <script>
-                function toggleSubject(mode) {
-                    const subjectGroup = document.getElementById('subject-group');
-                    const subjectSelect = subjectGroup.querySelector('select');
-                    const numInput = document.querySelector('input[name="num_questions"]');
-
-                    if (mode === 'section-wise') {
-                        subjectGroup.style.display = 'block';
-                        subjectSelect.disabled = false;
-
-                        // Limit to 150 for Section-wise
-                        numInput.max = 150;
-                        numInput.placeholder = "Max 150";
-                        if (parseInt(numInput.value) > 150) {
-                            numInput.value = 150;
-                        }
-                    } else {
-                        subjectGroup.style.display = 'none';
-                        subjectSelect.disabled = true;
-
-                        // Limit to 500 for Combined
-                        numInput.max = 500;
-                        numInput.placeholder = "Max 500";
-                    }
-                }
-
-                // Initialize state on load
-                window.onload = function () {
-                    const activeMode = document.querySelector('input[name="mode"]:checked').value;
-                    toggleSubject(activeMode);
-                };
-            </script>
-
-            <div class="features">
-                <div class="feature-item">
-                    <span>⚡ Instant Results</span>
-                </div>
-                <div class="feature-item">
-                    <span>📊 Detailed Analytics</span>
-                </div>
+            <div
+                style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--glass-border); text-align: center;">
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                    Questions seen in this session: <strong style="color: var(--accent);">{{ seen_count }}</strong>
+                </p>
+                <a href="/reset_progress" class="reset-link">Clear Progress & Reset Jumbling</a>
             </div>
         </div>
     </div>
+
+    <script>
+        function toggleSubject(mode) {
+            const subjectGroup = document.getElementById('subject-group');
+            const subjectSelect = subjectGroup.querySelector('select');
+            const numInput = document.querySelector('input[name="num_questions"]');
+
+            if (mode === 'section-wise') {
+                subjectGroup.style.display = 'block';
+                subjectSelect.disabled = false;
+                numInput.max = 150;
+                if (parseInt(numInput.value) > 150) numInput.value = 150;
+            } else {
+                subjectGroup.style.display = 'none';
+                subjectSelect.disabled = true;
+                numInput.max = 500;
+            }
+        }
+    </script>
 </body>
 
 </html>
